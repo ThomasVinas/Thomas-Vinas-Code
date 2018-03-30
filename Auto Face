@@ -1,0 +1,1161 @@
+import maya.cmds as cmd
+import pymel.core as pm
+from PySide2 import QtGui, QtWidgets
+import maya.OpenMayaUI as mui
+import shiboken2
+
+'''
+    Auto face rigger:
+        make sure you have a head joint!
+'''
+
+pm.selectPref(trackSelectionOrder=True)
+
+HeadThing = []
+EyeThing = []
+CheekThing = []
+ChinThing = []
+BrowList = []
+NoseList = []
+ULipList = []
+LLipList = []
+
+
+
+class FaceRig:
+    
+    def __init__(self):
+        #HN = HeadName.getText()
+        HN = HeadThing[0]
+        if pm.objExists(HN):
+            self.Head = HN
+        else:
+            self.Head = pm.joint(n='Head_Jt')
+        self.HeadLoc = pm.xform(self.Head, q=1, ws=1, rp=1)
+        self.HeadCarl = pm.circle(n='Head_Ctrl', nr=(0, 0, 1), r=2, ch=0)
+        self.HeadCtrl = pm.group(n='HeadControl_Grp', em=1)
+        pm.parent(self.HeadCtrl,self.HeadCarl[0])
+        self.HeadCarl[0].setTranslation((self.HeadLoc[0],self.HeadLoc[1],self.HeadLoc[2]+-20))
+        pm.makeIdentity(self.HeadCarl, a=1, t=1, r=1)
+        self.HeadCarl[0].setPivots((self.HeadLoc[0],self.HeadLoc[1],self.HeadLoc[2]))
+        #pm.xform(self.HeadCtrl, cp=1)
+        
+        pm.setAttr("%s.overrideEnabled" % self.HeadCtrl, 1)
+        pm.setAttr("%s.overrideColor" % self.HeadCtrl, 30)
+        
+        pm.makeIdentity(self.HeadCarl, a=1, t=1, r=1)
+        #pm.xform(self.HeadCarl, cp=1)
+        pm.parentConstraint(self.HeadCarl, self.Head, mo=1)
+        
+        
+        #makes the shaders
+        self.red = pm.shadingNode('lambert', asShader=1, n='Red')
+        pm.setAttr('%s.color' % self.red, 1, 0, .1, type='double3')
+        #This one is yellow
+        self.yell = pm.shadingNode('lambert', asShader=1, n='Yellow')
+        pm.setAttr('%s.color' % self.yell, .9, 1, .2, type='double3')
+        #This one is Blue
+        self.blue = pm.shadingNode('lambert', asShader=1, n='Purple')
+        pm.setAttr('%s.color' % self.blue, .1, .3, .9, type='double3')
+        #This one is purple
+        self.prup = pm.shadingNode('lambert', asShader=1, n='Purple')
+        pm.setAttr('%s.color' % self.prup, .6, .1, .7, type='double3')
+        print 'EMPTY'
+        
+        treh = True
+        #HN = HeadName.getText()
+        #HN = HeadThing[0]
+        print pm.objExists(HN)
+        
+        #BN = BrowName.getText()
+        print BrowList
+        BN = BrowList
+        print BN
+        #print pm.objExists(BN)
+        if len(BrowList) == 3:
+            self.OnFleek(BN)
+
+        
+        #EN = EyeName.getText()
+        EN = EyeThing[0]
+        print pm.objExists(EN)
+        if pm.objExists(EN):
+            self.ScaryEyes(EN)
+            
+        #self.ScaryEyes(EN)
+        
+        
+        #NN = NoseName.getText()
+        NN = NoseList
+        if len(NN) == 2:
+            self.DatNose(NN)
+            
+        #self.DatNose(NN)
+        
+        #ChN = CheekName.getText()
+        ChN = CheekThing[0]
+        print pm.objExists(ChN)
+        if pm.objExists(ChN):
+            self.Chiqles(ChN)
+            
+        #self.Chiqles(ChN)
+        
+        #CiN = ChinName.getText()
+        CiN = ChinThing[0]
+        print pm.objExists(CiN)
+        if pm.objExists(CiN):
+            self.MarChin(CiN)
+            
+        #self.MarChin(CiN)
+        
+        
+        #UN = ULipName.getText()
+        UN = ULipList
+        #print pm.objExists(UN)
+        
+        #LN = LLipName.getText()
+        LN = LLipList
+        #print pm.objExists(LN)
+        
+        if (len(UN) > 1) and (len(LN) > 1):
+            self.SexyLips(ULipList, LLipList)
+            
+        #self.SexyLips(ULipList, LLipList)
+        
+        
+
+        
+        
+        
+    def distance(self, frst, snd):
+        pm.select(cl=1)
+        one = pm.joint(a=1, p=(frst), rad=.3)
+        pm.select(cl=1)
+        two = pm.joint(a=1, p=(snd), rad=.3)
+        
+        frst = one.getRotatePivot('world')
+        snd = two.getRotatePivot('world')
+        #frst = pm.general.PyNode(frst)
+        #snd = pm.general.PyNode(snd)
+        #distance formula d = sqrt( (x1-x2)^2 + (y1-y2)^2 + (z1-z2)^2 )
+        minus = frst - snd
+        sqrd = minus ** 2
+        add = sqrd[0] + sqrd[1] + sqrd[2]
+        root = int(add ** .5)
+        pm.delete(one)
+        pm.delete(two)
+        return root
+        
+    def length(self, vect):
+        sqit = vect[0]**2 + vect[1]**2 + vect[2]**2
+        leng = round(math.sqrt(sqit), 2)
+        
+        return leng
+        
+        
+    def Midpoint(self, a,b):
+        pm.select(cl=1)
+        one = pm.joint(a=1, p=(a), rad=.3)
+        pm.select(cl=1)
+        two = pm.joint(a=1, p=(b), rad=.3)
+        
+        aPos = one.getRotatePivot('world')
+        cPos = two.getRotatePivot('world')
+        
+        
+        midPos = [((aPos[0] - cPos[0])/2)+cPos[0], ((aPos[1] - cPos[1])/2)+cPos[1],((aPos[2] - cPos[2])/2)+cPos[2]]
+        
+        pm.delete(one)
+        pm.delete(two)
+        return midPos
+        
+        
+        
+    '''Start of the brows'''
+    def OnFleek(self, three):
+        realThree = []
+        o = pm.xform(three[0], q=1, ws=1, t=1)
+        t = pm.xform(three[1], q=1, ws=1, t=1)
+        te = pm.xform(three[2], q=1, ws=1, t=1)
+        three = [o, t, te]
+        
+        for i in range(3):
+            rem = min(three)
+            realThree.append(rem)
+            three.remove(rem)
+        
+        
+        lInner = realThree[0]
+        lMid = realThree[1]
+        lOut = realThree[2]
+        
+        rInner = [lInner[0] * -1,lInner[1],lInner[2]]
+        rMid = [lMid[0] * -1,lMid[1],lMid[2]]
+        rOut = [lOut[0] * -1,lOut[1],lOut[2]]
+        
+        leftBrow = [lInner,lMid,lOut]
+        rightBrow = [rInner,rMid,rOut]
+        
+        #Pretty much makes the whole brow setup
+        def monoBrow(side, browSet):
+            bc = pm.circle(n='%s_Brow_Ctrl' % side, nr=(0, 0, 1), c=(0,0,0), r=2, ch=0)[0]
+            bc.cv[4].translateBy((-.05, .7,0))
+            bc.cv[5].translateBy((0, 2,0))
+            bc.cv[6].translateBy((.05, .7,0))
+            
+            bc.cv[2].translateBy((0, -.9,0))
+            bc.cv[1].translateBy((0, -1.1,0))
+            bc.cv[0].translateBy((0, -.9,0))
+            
+            inbc = pm.circle(n='%s_InnerBrow_Ctrl' % side, nr=(0, 0, 1), r=.5, ch=0)[0]
+            inbc.translateBy((-1.3,0,0))
+            mdbc = pm.circle(n='%s_MiddleBrow_Ctrl' % side, nr=(0, 0, 1), r=.5, ch=0)[0]
+            mdbc.translateBy((0,.2,0))
+            mdbc.cv[2].translateBy((-.2, .2,0))
+            mdbc.cv[1].translateBy((0, .1,0))
+            mdbc.cv[0].translateBy((.2, .2,0))
+            otbc = pm.circle(n='%s_OuterBrow_Ctrl' % side, nr=(0, 0, 1), r=.5, ch=0)[0]
+            otbc.translateBy((1.3,0,0))
+            
+    
+            pm.parent(inbc,bc)
+            pm.parent(mdbc,bc)
+            pm.parent(otbc,bc)
+            pm.setAttr( "%s.overrideEnabled" % bc, 1)
+            if side == 'R':
+                bc.rotateBy((0,180,0))
+                pm.setAttr("%s.overrideColor" % bc, 4)
+            else:
+                print 'Cheers, you*re left'
+                pm.setAttr("%s.overrideColor" % bc, 28)
+                
+            
+                
+            browMid = self.Midpoint(browSet[0], browSet[2])
+            browDist = self.distance(browSet[0], browSet[2])
+            
+            bc.setTranslation((browMid[0],browMid[1]+1,browMid[2]+1.2))
+            bc.setScale((.4*browDist,.3*browDist,1))
+            
+            pm.makeIdentity(bc, a=1, t=1, r=1, s=1)
+            
+            inbc.setPivots((browSet[0][0],browSet[0][1],browSet[0][2]-1))
+            mdbc.setPivots((browSet[1][0],browSet[1][1],browSet[1][2]-1))
+            otbc.setPivots((browSet[2][0],browSet[2][1],browSet[2][2]-1))
+            
+            bc.setPivots((browMid[0],browMid[1],browMid[2]-1))
+            
+            pm.select(cl=1)
+            inbjt = pm.joint(n='%s_InnerBrow_Jt' % side, p=(browSet[0]), rad=1)
+            pm.parentConstraint(inbc,inbjt,mo=1)
+            pm.parent(inbjt, self.Head)
+            pm.select(cl=1)
+            mdbjt = pm.joint(n='%s_MiddleBrow_Jt' % side, p=(browSet[1]), rad=1)
+            pm.parentConstraint(mdbc,mdbjt,mo=1)
+            pm.parent(mdbjt, self.Head)
+            pm.select(cl=1)
+            otbjt = pm.joint(n='%s_OuterBrow_Jt' % side, p=(browSet[2]), rad=1)
+            pm.parentConstraint(otbc,otbjt,mo=1)
+            pm.parent(otbjt, self.Head)
+            pm.select(cl=1)
+            
+            pm.parent(bc, self.HeadCtrl)
+            
+            
+            
+            for i in [bc,inbc,mdbc,otbc]:
+                pm.setAttr('%s.visibility' % i, k=0, cb=0, l=1)
+                pm.setAttr('%s.sx' % i, k=0, cb=0, l=1)
+                pm.setAttr('%s.sy' % i, k=0, cb=0, l=1)
+                pm.setAttr('%s.sz' % i, k=0, cb=0, l=1)
+                
+                
+        monoBrow('L',leftBrow)
+        monoBrow('R',rightBrow)
+
+        
+        #End of the brow
+        
+        
+        
+        
+        
+        
+        
+    '''Start of Eyes'''
+    def ScaryEyes(self, ey):
+        LEyeLoc = pm.xform(ey, q=1, ws=1, rp=1)
+        #moop = pm.general.PyNode(LEyeLoc)
+        
+        REyeLoc = [LEyeLoc[0] * -1,LEyeLoc[1],LEyeLoc[2]]
+        
+        eyeDist = self.distance(LEyeLoc,REyeLoc)
+        
+        EyeGroup = pm.group(n='Eye_Grp', em=1)
+        pm.select(cl=1)
+        #lets simplify it
+        #eye bones and controls in one function
+        #eye joint, upperlid joint, upperlid group, lowerlid joint, lowerlid group, eye control
+        def EySetup(side, Loc):
+            print Loc
+            eyej = pm.joint( n='%s_Eye_Jt' % side, a=1, p=(Loc), rad=.3)
+            pm.parent(eyej, EyeGroup)
+            pm.select(cl=1)
+            
+            eyeulj = pm.joint( n='%s_UpperLid_Jt' % side, p=(Loc), rad=.3)
+            ubgrp = pm.group(eyeulj, n='%s_UpperLidBlink_Grp' % side)
+            pm.xform(ubgrp, pivots=(Loc))
+            pm.parent(ubgrp, EyeGroup)
+            pm.select(cl=1)
+            
+            eyellj = pm.joint( n='%s_LowerLid_Jt' % side, p=(Loc), rad=.3)
+            lbgrp = pm.group(eyellj, n='%s_LowerLidBlink_Grp' % side)
+            pm.xform(lbgrp, pivots=(Loc))
+            pm.parent(lbgrp, EyeGroup)
+            pm.select(cl=1)
+                
+            #eye Controls
+            eyeC = pm.circle(n='%s_Eye_Ctrl' % side, nr=(0, 0, 1), c=(Loc[0],Loc[1],Loc[2]+abs(Loc[0]*2)), r=.6, ch=0)
+            
+            pm.xform(eyeC, pivots=(Loc[0],Loc[1],Loc[2]+abs(Loc[0]*2)))
+            eyeC[0].setScale((.3*eyeDist,.3*eyeDist,.3*eyeDist))
+            pm.makeIdentity(eyeC, apply=True, t=1, r=1, s=1, n=0)
+            pm.aimConstraint(eyeC, eyej, w=1, wut='none', mo=1)
+            pm.setAttr( "%s.overrideEnabled" % eyeC[0], 1)
+            if side == 'L':
+                pm.setAttr("%s.overrideColor" % eyeC[0], 28)
+            else:
+                pm.setAttr("%s.overrideColor" % eyeC[0], 4)
+                
+            return [eyej, eyeulj, ubgrp, eyellj, lbgrp, eyeC]
+            
+        LeftEye = EySetup('L',LEyeLoc)
+        RightEye = EySetup('R',REyeLoc)
+
+        
+        #both Eye Controls
+        alleyeC = pm.circle(n='Master_Eye_Ctrl', nr=(0, 0, 1), d=1, s=4, c=(LEyeLoc[0]+REyeLoc[0],LEyeLoc[1],LEyeLoc[2]+(LEyeLoc[0]*2)), r=1.5, ch=0)
+        pm.xform(alleyeC, pivots=(LEyeLoc[0]+REyeLoc[0],LEyeLoc[1],LEyeLoc[2]+(LEyeLoc[0]*2) ) )
+        alleyeC[0].setRotation((0,0,45))
+        #pm.rotate(0,0,45, alleyeC[0])
+        pm.makeIdentity(alleyeC, apply=True, r=1)
+        alleyeC[0].setScale((.8 * eyeDist, .3* eyeDist,1))
+        #pm.scale(eyeDist,1,1, alleyeC)
+        pm.makeIdentity(alleyeC, apply=True, t=1, r=1, s=1, n=0)
+        #Makes the main controller purple
+        pm.setAttr("%s.overrideEnabled" % alleyeC[0], 1)
+        pm.setAttr("%s.overrideColor" % alleyeC[0], 30)
+        #Locks dumb attributes
+        pm.setAttr('%s.visibility' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sx' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sy' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sz' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.rx' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.ry' % alleyeC[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.rz' % alleyeC[0], k=0, cb=0, l=1)
+
+
+        #Add those extra channels
+        for i in [LeftEye[-1],RightEye[-1]]:
+            pm.addAttr(i, ln="Upper_Lid", at='float', max=2, min=-2, dv=0, k=1, h=0)
+            pm.addAttr(i, ln="Lower_Lid", at='float', max=2, min=-2, dv=0, k=1, h=0)
+            pm.setAttr('%s.visibility' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.sx' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.sy' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.sz' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.rx' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.ry' % i[0], k=0, cb=0, l=1)
+            pm.setAttr('%s.rz' % i[0], k=0, cb=0, l=1)
+        
+        pm.addAttr(alleyeC[0], ln="Upper_Blink_Strength", at='float', dv=1, k=1, h=0)
+        pm.addAttr(alleyeC[0], ln="Lower_Blink_Strength", at='float', dv=1, k=1, h=0)
+        pm.addAttr(alleyeC[0], ln="Upper_Lid_Strength", at='float', dv=1, k=1, h=0)
+        pm.addAttr(alleyeC[0], ln="Lower_Lid_Strength", at='float', dv=1, k=1, h=0)
+        
+        
+        
+        
+        def OpticNerve(side, eye):
+            LlidMD = pm.shadingNode("multiplyDivide", n='%s_EyeLid_MD' % side, asUtility=1)
+            LallLidMD = pm.shadingNode("multiplyDivide", n='%s_AllEyeLid_MD' % side, asUtility=1)
+            LlidOffMD = pm.shadingNode("multiplyDivide", n='%s_EyeLidOffset_MD' % side, asUtility=1)
+            LlidAllOffMD = pm.shadingNode("multiplyDivide", n='%s_EyeLidAllOffset_MD' % side, asUtility=1)
+            LallPMA = pm.shadingNode("plusMinusAverage", n='%s_EyeLid_PMA' % side, asUtility=1)
+            
+            LblinkMD = pm.shadingNode("multiplyDivide", n='%s_Blink_MD' % side, asUtility=1)
+            LblinkOffMD = pm.shadingNode("multiplyDivide", n='%s_BlinkOffset_MD' % side, asUtility=1)
+            
+            #space saver for setting node values
+            def mdSetter(node,x,y,z):
+                pm.setAttr('%s.input2X' % node, x)
+                pm.setAttr('%s.input2Y' % node, y)
+                pm.setAttr('%s.input2Z' % node, z)
+    
+            #oof.
+            #connects left eye to the offset node
+            pm.connectAttr('%s.ty' % eye[-1][0], '%s.input1X' % LlidOffMD, f=1)
+            pm.connectAttr('%s.ty' % eye[-1][0], '%s.input1Y' % LlidOffMD, f=1)
+            pm.connectAttr('%s.tx' % eye[-1][0], '%s.input1Z' % LlidOffMD, f=1)
+            #connects the individual eye controller offset Channels to the offset node
+            pm.connectAttr('%s.Upper_Lid_Strength' % alleyeC[0], '%s.input2X' % LlidOffMD, f=1)
+            pm.connectAttr('%s.Lower_Lid_Strength' % alleyeC[0], '%s.input2Y' % LlidOffMD, f=1)
+            pm.connectAttr('%s.Lower_Lid_Strength' % alleyeC[0], '%s.input2Z' % LlidOffMD, f=1)
+            #Connects to the actual lid node
+            pm.connectAttr('%s.output' % LlidOffMD, '%s.input1' % LlidMD, f=1)
+            mdSetter(LlidMD, -40, -20, 20)
+            #connects the all eye controller to the offset node
+            pm.connectAttr('%s.ty' % alleyeC[0], '%s.input1X' % LlidAllOffMD, f=1)
+            pm.connectAttr('%s.ty' % alleyeC[0], '%s.input1Y' % LlidAllOffMD, f=1)
+            pm.connectAttr('%s.tx' % alleyeC[0], '%s.input1Z' % LlidAllOffMD, f=1)
+            #connects the all eye controller offset Channels to the offset node
+            pm.connectAttr('%s.Upper_Lid_Strength' % alleyeC[0], '%s.input2X' % LlidAllOffMD, f=1)
+            pm.connectAttr('%s.Lower_Lid_Strength' % alleyeC[0], '%s.input2Y' % LlidAllOffMD, f=1)
+            pm.connectAttr('%s.Lower_Lid_Strength' % alleyeC[0], '%s.input2Z' % LlidAllOffMD, f=1)
+            #Connects to the actual lid node
+            pm.connectAttr('%s.output' % LlidAllOffMD, '%s.input1' % LallLidMD, f=1)
+            mdSetter(LallLidMD, -40, -20, 20)
+            
+    
+            
+            #Adding the main and eye controller
+            pm.connectAttr('%s.output' % LlidMD, '%s.input3D[0]' % LallPMA, f=1)
+            pm.connectAttr('%s.output' % LallLidMD, '%s.input3D[1]' % LallPMA, f=1)
+            
+            #connects to the upper lid
+            pm.connectAttr('%s.output3Dx' % LallPMA, '%s.rx' % eye[2], f=1)
+            pm.connectAttr('%s.output3Dz' % LallPMA, '%s.ry' % eye[2], f=1)
+            
+            #connects to the lower lid
+            pm.connectAttr('%s.output3Dy' % LallPMA, '%s.rx' % eye[4], f=1)
+            pm.connectAttr('%s.output3Dz' % LallPMA, '%s.ry' % eye[4], f=1)
+            
+            #Connecting blink
+            pm.connectAttr('%s.Upper_Lid' % eye[-1][0], '%s.input1X' % LblinkOffMD, f=1)
+            pm.connectAttr('%s.Lower_Lid' % eye[-1][0], '%s.input1Y' % LblinkOffMD, f=1)
+            pm.connectAttr('%s.Upper_Blink_Strength' % alleyeC[0], '%s.input2X' % LblinkOffMD, f=1)
+            pm.connectAttr('%s.Lower_Blink_Strength' % alleyeC[0], '%s.input2Y' % LblinkOffMD, f=1)
+            #connecting blink offset to blink
+            pm.connectAttr('%s.output' % LblinkOffMD, '%s.input1' % LblinkMD, f=1)
+            pm.connectAttr('%s.outputY' % LblinkMD, '%s.rx' % eye[3], f=1)
+            pm.connectAttr('%s.outputX' % LblinkMD, '%s.rx' % eye[1], f=1)
+            #Sets the blinks based on what side they're on
+            if side == 'L':
+                mdSetter(LblinkMD,34, -39,1)
+            else:
+                mdSetter(LblinkMD,34, -39,1)
+            
+        OpticNerve('L', LeftEye)
+        OpticNerve('R', RightEye)
+        pm.parent(LeftEye[-1], alleyeC[0])
+        pm.parent(RightEye[-1], alleyeC[0])
+        pm.parent(EyeGroup, self.Head)
+        pm.parent(alleyeC[0], self.HeadCtrl)
+        
+        #end of Eyes
+        
+        
+        
+        
+        
+        
+        
+        
+    '''Start of Nose'''
+    def DatNose(self, shnoz):
+        
+        realNoz = []
+        o = pm.xform(shnoz[1], q=1, ws=1, t=1)
+        t = pm.xform(shnoz[0], q=1, ws=1, t=1)
+        shnoz = [o, t]
+        
+        for i in range(2):
+            rem = min(shnoz)
+            realNoz.append(rem)
+            shnoz.remove(rem)
+        
+        
+        tip = realNoz[0]
+        lNos = realNoz[1]
+        rNos = [lNos[0] * -1,lNos[1],lNos[2]]
+        
+        #makes joints for nose
+        pm.select(cl=1)
+        tipJ = pm.joint(n='NoseTip_Jt', r=2)
+        tipJ.setTranslation(tip)
+        pm.select(cl=1)
+        lNosJ = pm.joint(n='L_Nose_Jt', r=2)
+        lNosJ.setTranslation(lNos)
+        pm.select(cl=1)
+        rNosJ = pm.joint(n='R_Nose_Jt', r=2)
+        rNosJ.setTranslation(rNos)
+        pm.select(cl=1)
+        
+        #Parents the joints around
+        pm.parent(tipJ, self.Head)
+        pm.parent(lNosJ, tipJ)
+        pm.parent(rNosJ, tipJ)
+        
+        #Gets the midpoint for controller placement
+        noseMid = self.Midpoint(lNos, rNos)
+        wnoseDist = self.distance(lNos, rNos)
+        lnoseDist = self.distance(lNos, tip)
+        
+        #Shapes controller
+        nc = pm.circle(n='Nose_Ctrl', nr=(0, 1, 0), c=(0,0,0), r=2, ch=0)[0]
+        nc.cv[4].translateBy((.5,0,-1))
+        nc.cv[6].translateBy((-.5,0,-1))
+        nc.cv[0].translateBy((0,0,1))
+        nc.cv[1].translateBy((0,0,2))
+        nc.cv[2].translateBy((0,0,1))
+        
+        #Moves that badboy
+        nc.setTranslation((noseMid[0],tip[1]-.5,noseMid[2]))
+        
+        #Scales that badboy
+        nc.setScale((.4*wnoseDist,1,.7*lnoseDist))
+        
+        #makes the nose control the joints
+        pm.makeIdentity(nc, a=1, t=1, s=1)
+        nc.setPivots(tip)
+        pm.parentConstraint(nc, tipJ, mo=1)
+        
+        def noseHook(side, nost):
+            LnosMD = pm.shadingNode("multiplyDivide", n='%s_Nostril_MD' % side, asUtility=1)
+            #print 'AAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!!!!!!!!!!!!!!!!!!!'
+            pm.connectAttr('%s.scale' % nc, '%s.input1' % LnosMD, f=1)
+            pm.setAttr('%s.input2' % LnosMD, nost.getTranslation())
+            pm.connectAttr('%s.output' % LnosMD, '%s.translate' % nost, f=1)
+        
+        noseHook('L', lNosJ)
+        noseHook('L', rNosJ)
+        
+        
+        pm.setAttr('%s.visibility' % nc, l=1, k=0)
+        pm.parent(nc, self.HeadCtrl)
+        
+            
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    '''Start of Cheek'''
+    def Chiqles(self, damp):
+        pm.select(cl=1)
+        lCheek = pm.xform(damp, q=1, ws=1, t=1)
+        print 'screams'
+        rCheek = [lCheek[0]*-1,lCheek[1],lCheek[2]]
+        def ciik(side, dimp):
+            chiqj = pm.joint(n='%s_Cheek_Jt' % side, r=3)
+            chiqj.translateBy(dimp,'world')
+            chiqDist = self.distance(self.HeadLoc,dimp)
+            #makes the controls THAT DON'T RENDER
+            #FUCK! PAST TOM WAS SMART!
+            #name, controlled object, position offset, color of controller
+            def ctrlMaker(ori, i, mod):
+                spear = pm.sphere(n='%s_Cheek_Ctrl' % ori, r=.05, ch=0)
+                #assigns the shaders
+                if ori == 'R':
+                    pm.hyperShade(a=self.red)
+                elif ori == 'L':
+                    pm.hyperShade(a=self.blue)
+                    
+                
+                x = pm.xform(i, q=1, ws=1, rp=1)
+                
+                pm.move(x[0], x[1]+.1, x[2]+(.1*mod), spear)
+                spear[0].setScale((1*mod,1*mod,1*mod))
+                #Moves Pivot
+                pm.xform(spear, ws=1, piv=x)
+                
+                #makes the spheres not renderable
+                pm.setAttr('%sShape.castsShadows' % spear[0], 0)
+                pm.setAttr('%sShape.receiveShadows' % spear[0], 0)
+                pm.setAttr('%sShape.primaryVisibility' % spear[0], 0)
+                #Locks scale
+                pm.makeIdentity(spear[0], a=1, t=1, s=1)
+                #pm.setAttr('%s.sx' % spear[0], l=1, k=0)
+                #pm.setAttr('%s.sy' % spear[0], l=1, k=0)
+                pm.setAttr('%s.visibility' % spear[0], l=1, k=0)
+                #freezes tranforms
+                #pm.makeIdentity(spear[0], a=1, t=1)
+                pm.parentConstraint(spear,i, mo=1)
+                pm.scaleConstraint(spear,i, mo=1)
+            
+                return spear
+                
+            cheekCtrl = ctrlMaker(side, chiqj, chiqDist)
+            pm.parent(chiqj, self.Head)
+            pm.parent(cheekCtrl, self.HeadCtrl)
+            
+        ciik('L', lCheek)
+        ciik('R', rCheek)
+        
+        #end of Cheek
+        
+        
+        
+        
+        
+        
+        
+    '''Start of Chin'''
+    def MarChin(self, butt):
+        pm.select(cl=1)
+        Chin = pm.xform(butt, q=1, ws=1, t=1)
+        #makes joint
+        chinj = pm.joint(n='Chin_Jt', r=3)
+        chinj.translateBy(Chin,'world')
+        #Gets distance between chin and head(for scale)
+        chinDist = self.distance(self.HeadLoc,Chin)
+        self.ChinCtrl = pm.circle(n='Chin_Ctrl', nr=(1, 0, 0), c=(Chin), r=(.1*chinDist), ch=0)
+        #moves pivot to head
+        self.ChinCtrl[0].setPivots(self.HeadLoc)
+        
+        #Locks dumb attributes
+        pm.setAttr('%s.visibility' % self.ChinCtrl[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sx' % self.ChinCtrl[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sy' % self.ChinCtrl[0], k=0, cb=0, l=1)
+        pm.setAttr('%s.sz' % self.ChinCtrl[0], k=0, cb=0, l=1)
+        #pm.setAttr('%s.rx' % alleyeC[0], k=0, cb=0, l=1)
+        #pm.setAttr('%s.ry' % alleyeC[0], k=0, cb=0, l=1)
+        #pm.setAttr('%s.rz' % alleyeC[0], k=0, cb=0, l=1)
+        #Cleanup and heirarchy
+        pm.parent(chinj, self.Head)
+        pm.parentConstraint(self.ChinCtrl[0], chinj,mo=1)
+        pm.parent(self.ChinCtrl[0], self.HeadCtrl)
+        
+        
+        #End of Chin
+        
+        
+        
+        
+        
+        
+        
+    '''Lip rig section'''
+    def SexyLips(self, Upper, Lower):
+        '''
+        #selects the component level and stores it
+        #For the upper lip
+        bits = pm.ls(sl=1, fl=1)
+        bops = pm.ls(os=1, fl=1)
+        
+        #For the lower lip
+        Lbits = pm.ls(sl=1, fl=1)
+        Lbops = pm.ls(os=1, fl=1)
+        print bops
+        '''
+        #makes curves and joints
+        def lipCurve(ori, lizt):
+            #makes the curve on the selected components
+            for i in lizt:
+                #gets transform data from components
+                x = pm.xform(i, q=1, ws=1, t=1)
+                #creates curve
+                if i == lizt[0]:
+                    crv = pm.curve(p=[x[0],x[1],x[2]], d=1, n='%slip_Crv' % ori)
+                else:
+                    crv = pm.curve(crv, p=[x[0],x[1],x[2]], a=True) 
+                
+            #rebuilds curve      
+            rlcrv = pm.rebuildCurve(crv, ch=0, rpo=1, rt=0, end=1, kr=0, kcp=0, kt=0, s=4, d=1)    
+            
+            # Get all cvs from curve
+            curveCVs = pm.ls('{0}.cv[:]'.format(rlcrv[0]), fl = True) 
+            
+            Jtlist = []
+            Sticklist = []
+            
+            #puts joints on cvs
+            for num,cv in enumerate(curveCVs):
+                pm.select(cl=1)
+                #makes joints
+                jnt = pm.joint(radius=.5, n='%slip%s_Jt' % (ori,(num+1)))
+                Jtlist.append(jnt)
+                #grabs position data from component
+                pos = pm.xform(cv, q=1, ws=1, t=1)
+                #moves joint to the component
+                #why don't I use this more often? much more concise.
+                pm.xform(jnt, ws=1, t=pos)  
+                
+                groap = pm.group(jnt, n='%sSticky%s_Grp' % (ori,(num+1)))
+                
+                Sticklist.append(groap)
+                
+            pm.delete(rlcrv[0])
+            
+            
+            #return Jtlist
+            return Sticklist
+            
+        upperJts = lipCurve("Upper",Upper)
+        lowerJts = lipCurve("Lower",Lower)
+        
+        
+        locGrp = []
+        var = 0
+        #Locator maker
+        for u,l in zip(upperJts,lowerJts):
+            var += 1
+            #makes locator
+            charles = pm.spaceLocator(n='Zipl%s_Loc' % var)
+            
+            charles.setScale((.1,.1,.1))
+            #pm.scale(1, charles)
+            #gets joint transforms
+            x = pm.xform(u, q=1, ws=1, rp=1)
+            z = pm.xform(l, q=1, ws=1, rp=1)
+            
+            #moves locator to the middle
+            pm.move(x[0],(x[1]+z[1])/2,(x[2]+z[2])/2, charles)
+            
+            locGrp.append(charles)
+        
+
+        #Creates the constraints for zipping
+        def zippy(lizt):
+            blender = []
+            for num,i in enumerate(lizt):
+                #sets keyframes for blend parent
+                pm.setKeyframe('%s.tx' % i)
+                pm.setKeyframe('%s.ty' % i)
+                pm.setKeyframe('%s.tz' % i)
+                
+                #parent constraint with maintain offset off
+                pm.parentConstraint(locGrp[num], i, mo=0)
+                #returns to original position
+                pm.setAttr('%s.blendParent1' % i, 0)
+                #Return blend parent names
+                blender.append('%s.blendParent1' % i)
+            return blender
+        
+        upperB = zippy(upperJts)
+        lowerB = zippy(lowerJts)
+        
+        #makes the constraint groups
+        def ConstraintGrp(ori, lizt):
+            grpGroup = []
+            
+            for num,i in enumerate(lizt):
+                iTrans = pm.xform(i, q=1, ws=1, rp=1)
+                conGrop = pm.group(em=1, n='%sConst%s_Grp' % (ori, (num+1)))
+                #moves group pivot to joint
+                pm.xform(conGrop, ws=1, piv=iTrans)
+                #puts it in the group
+                pm.parent(i, conGrop)
+                #return group names
+                grpGroup.append(conGrop)
+                
+            return grpGroup
+        
+        
+        upperGrp = ConstraintGrp('Upper', upperJts)
+        lowerGrp = ConstraintGrp('Lower', lowerJts)
+        
+        #makes locator group
+        lok = pm.group(em=1, n='Locator_Grp')
+        #puts them in the group
+        for i in locGrp:
+            pm.parent(i, lok)
+        #centers pivot
+        pm.xform(lok, cp=1)
+        
+        
+        lipDist = self.distance(upperGrp[2].getRotatePivot('world'), upperGrp[4].getRotatePivot('world'))
+        
+        #makes the controls
+        def ctrlMaker(ori, i, mod, colr):
+            spear = pm.sphere(n='%s' % ori, r=.05, ch=0)
+            #assigns the shaders
+            if colr == 1:
+                pm.hyperShade(a=self.red)
+            elif colr == 2:
+                pm.hyperShade(a=self.blue)
+            elif colr == 3:
+                pm.hyperShade(a=self.prup)
+            else:
+                pm.hyperShade(a=self.yell)
+                
+            
+            x = pm.xform(i, q=1, ws=1, rp=1)
+            
+            pm.move(x[0], x[1]+mod, x[2]+(.15*lipDist), spear)
+            spear[0].setScale((2*lipDist,2*lipDist,2*lipDist))
+            #Moves Pivot
+            pm.xform(spear, ws=1, piv=x)
+            
+            #makes the spheres not renderable
+            pm.setAttr('%sShape.castsShadows' % spear[0], 0)
+            pm.setAttr('%sShape.receiveShadows' % spear[0], 0)
+            pm.setAttr('%sShape.primaryVisibility' % spear[0], 0)
+            #Locks scale
+            pm.makeIdentity(spear[0], a=1, t=1, s=1)
+            pm.setAttr('%s.sx' % spear[0], l=1, k=0)
+            pm.setAttr('%s.sy' % spear[0], l=1, k=0)
+            pm.setAttr('%s.sz' % spear[0], l=1, k=0)
+            pm.setAttr('%s.visibility' % spear[0], l=1, k=0)
+            #freezes tranforms
+            pm.makeIdentity(spear[0], a=1, t=1)
+            pm.parentConstraint(spear,i, mo=1)
+        
+            return spear
+            
+        #the unfortunate mass of text
+        #It's using the function for making specific controllers
+        muLip = ctrlMaker('UpperLip_Ctrl', upperGrp[2], .2, 3)
+        lcLip = ctrlMaker('L_CornerLip_Ctrl', upperGrp[4], -.09, 2)
+        rcLip = ctrlMaker('R_CornerLip_Ctrl', upperGrp[0], -.09, 1)
+        mlLip = ctrlMaker('LowerLip_Ctrl', lowerGrp[2], -.2, 3)
+        #Things that needed constraints
+        pm.parentConstraint(lcLip ,lowerGrp[4] ,mo=1)
+        pm.parentConstraint(rcLip ,lowerGrp[0] ,mo=1)
+        #The zip attributes added
+        pm.addAttr(muLip, ln="Extra_Attributes", at='enum', en='-------------',dv=0, k=1, h=0)
+        pm.addAttr(muLip, ln="Right_Zip", at='double', min=0, max=1, dv=0, k=1, h=0)
+        pm.addAttr(muLip, ln="Left_Zip", at='double', min=0, max=1, dv=0, k=1, h=0)
+        pm.addAttr(muLip, ln="Middle_Zip", at='double', min=0, max=1, dv=0, k=1, h=0)
+        pm.addAttr(muLip, ln="Hide_Extras", at='long', min=0, max=1, dv=0, k=1, h=0)
+        #the less important controllers being made
+        ruLip = ctrlMaker('R_UpperLip_Ctrl', upperGrp[1], .2, 0)
+        luLip = ctrlMaker('L_UpperLip_Ctrl', upperGrp[3], .2, 0)
+        rlLip = ctrlMaker('R_LowerLip_Ctrl', lowerGrp[1], -.2, 0)
+        llLip = ctrlMaker('L_LowerLip_Ctrl', lowerGrp[3], -.2, 0)
+        
+        #The group to make my life easier
+        #"Controller Group"
+        cg = [muLip[0],rcLip[0],lcLip[0],mlLip[0],ruLip[0],luLip[0],rlLip[0],llLip[0]]
+        upCg = [rcLip[0],ruLip[0],muLip[0],luLip[0],lcLip[0]]
+        
+        #the REALLY unfortunate wall of text
+        #Sets the set driven keys for making a convincing zip.
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[2] ,cd='%s.Middle_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[2] ,cd='%s.Middle_Zip' % muLip[0], dv=1 , v=1)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[2] ,cd='%s.Middle_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[2] ,cd='%s.Middle_Zip' % muLip[0], dv=1 , v=1)
+        
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[4] ,cd='%s.Left_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[4] ,cd='%s.Left_Zip' % muLip[0], dv=.5 , v=1)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[4] ,cd='%s.Left_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[4] ,cd='%s.Left_Zip' % muLip[0], dv=.5 , v=1)
+        
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[3] ,cd='%s.Left_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[3] ,cd='%s.Left_Zip' % muLip[0], dv=1 , v=1)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[3] ,cd='%s.Left_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[3] ,cd='%s.Left_Zip' % muLip[0], dv=1 , v=1)
+        
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[0] ,cd='%s.Right_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[0] ,cd='%s.Right_Zip' % muLip[0], dv=.5 , v=1)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[0] ,cd='%s.Right_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[0] ,cd='%s.Right_Zip' % muLip[0], dv=.5 , v=1)
+        
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[1] ,cd='%s.Right_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % upperJts[1] ,cd='%s.Right_Zip' % muLip[0], dv=1 , v=1)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[1] ,cd='%s.Right_Zip' % muLip[0], dv=0 , v=0)
+        pm.setDrivenKeyframe('%s.blendParent1' % lowerJts[1] ,cd='%s.Right_Zip' % muLip[0], dv=1 , v=1)
+        #The end of the wall
+        
+        
+        ctGrp = pm.group(em=1, n='Ctrl_Grp')
+        pm.xform(ctGrp, cp=1)
+        def grouper(lizt):
+            theThing = []
+            
+            for i in lizt:
+                #Hey. HEY. Remember that replace method. It looks very useful
+                #It got rid of ctrl so your naming structure doesn't look like garbage
+                constipated = pm.group(i, n='%sConst_Grp' % i.replace('Ctrl',''))
+                pm.xform(constipated, cp=1)
+                had = pm.group(constipated, n='%sAdjustment_Grp' % i.replace('Ctrl',''))
+                pm.xform(had, cp=1)
+                pm.parent(had, ctGrp)
+                theThing.append(constipated)
+                
+            return theThing
+                
+        ctrlGrps = grouper(cg)
+        
+        #Makes constraints for natural movement
+        pm.parentConstraint(muLip, rcLip, ctrlGrps[4], mo=1)
+        pm.parentConstraint(muLip, lcLip, ctrlGrps[5], mo=1)
+        pm.parentConstraint(mlLip, rcLip, ctrlGrps[6], mo=1)
+        pm.parentConstraint(mlLip, lcLip, ctrlGrps[7], mo=1)
+            
+        pm.connectAttr('%s.Hide_Extras' % muLip[0], '%s.v' % ctrlGrps[4])
+        pm.connectAttr('%s.Hide_Extras' % muLip[0], '%s.v' % ctrlGrps[5])
+        pm.connectAttr('%s.Hide_Extras' % muLip[0], '%s.v' % ctrlGrps[6])
+        pm.connectAttr('%s.Hide_Extras' % muLip[0], '%s.v' % ctrlGrps[7])
+        
+        #Constrains the locators to the top controllers
+        for i,j in zip(upCg,locGrp):
+            pm.parentConstraint(i,j, mo=1)
+        
+        #Cleanup
+        pm.setAttr('%s.v' % lok, 0)
+        ug = pm.group(upperGrp, n='Upper_Grp')
+        pm.xform(ug, cp=1)
+        ul = pm.group(lowerGrp, n='Lower_Grp')
+        pm.xform(ul, cp=1)
+        #final group
+        kissGrp = pm.group([ug,ul,ctGrp,lok], n='LipsRig_Grp')
+        
+        
+        #Makes a hold position for the sides of the mouth
+        Rhold = pm.duplicate(ctrlGrps[1] ,po=1, n='%s' % ctrlGrps[1].replace('Const','Hold'))
+        Lhold = pm.duplicate(ctrlGrps[2] ,po=1, n='%s' % ctrlGrps[1].replace('Const','Hold'))
+        
+        #Makes the lower lip move with the chin
+        pm.parentConstraint(self.ChinCtrl[0], ctrlGrps[3],mo=1)
+        
+        if self.Head is None:
+            print 'whoopsie'
+        else:
+            print ctrlGrps
+            #Makes the lower lip follow the lower jaw
+            pm.parent(ug, self.Head)
+            pm.parent(ul, self.Head)
+            pm.parent(kissGrp, self.HeadCtrl)
+            
+    
+
+
+
+
+def read(textFeld, butt):
+    del textFeld[:]
+    grabIt = cmd.ls(sl=1)
+    if (butt == Eybutt) and (pm.nodeType(pm.listRelatives(grabIt, f=1, s=1)[0]) == 'mesh'):
+        textFeld.append(grabIt[0])
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+        
+    elif (butt == Hdbutt) and (pm.nodeType(grabIt[0]) == 'joint'):
+        textFeld.append(grabIt[0])
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+        
+    elif (butt == Cibutt) and (pm.nodeType(grabIt[0]) == 'mesh'):
+        textFeld.append(grabIt[0])
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+        
+    elif (butt == Chbutt) and (pm.nodeType(grabIt[0]) == 'mesh'):
+        textFeld.append(grabIt[0])
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+    #textFeld.setText('%s' % grabIt[0])
+
+def readList(thing, butt): 
+    del thing[:]
+    
+    grabIt = cmd.ls(sl=1)
+    if (butt == Brbutt) and (len(grabIt) == 3):
+        for i in grabIt:
+        	thing.append(i)
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+        
+    elif (butt == Nobutt) and (len(grabIt) == 2):
+        for i in grabIt:
+        	thing.append(i)
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+    #textFeld.setText('%s' % grabIt)
+    
+def readLips(thing, butt): 
+    del thing[:]
+    
+    grabI  = pm.ls(sl=1, fl=1)
+    grabIt = pm.ls(os=1, fl=1)
+    if len(grabIt) >= 2:
+        for i in grabIt:
+        	thing.append(i)
+        butt.setStyleSheet('background-color: #fe0; background-image:url(); color: #222;')
+    #textFeld.setText('%s' % grabIt)
+
+
+
+#Makes the mainwindow container
+def WindowCreation():
+    pointer = mui.MQtUtil.mainWindow()
+    return shiboken2.wrapInstance(long(pointer), QtWidgets.QWidget)
+    
+#This is supposed to be the name of the window...
+objectName = 'Auto Face'
+
+#If it's there it kills it
+if pm.window(objectName, exists=True):
+    pm.deleteUI(objectName, wnd=True)
+    
+#Makes container here
+Papa = WindowCreation()
+#Creates the actual main window
+windy = QtWidgets.QMainWindow(Papa)
+#Applies the name
+#Sets the name of the window object so I can kill it later
+windy.setObjectName(objectName)
+windy.setWindowTitle(objectName)
+windy.setMinimumSize(500,632)
+windy.setMaximumSize(500,632)
+
+#Gets the parent font/ font settings
+font = QtGui.QFont()
+font.setPointSize(8)
+font.setBold(True)
+
+#Makes the widget
+widget = QtWidgets.QWidget()
+windy.setCentralWidget(widget)
+#widget.setStyleSheet('background-color: #007;')
+#Sets up the layout
+#laylay = QtWidgets.QVBoxLayout(widget)
+#Head
+windy.setStyleSheet("background-image: url(/Head.jpg)")
+#windy.setStyleSheet('background-color: #f00;')
+Hdlay = QtWidgets.QVBoxLayout(widget)
+Hdgrp = QtWidgets.QGroupBox(widget)
+Hdgrp.setLayout(Hdlay)
+Hdgrp.move(190,0)
+Hdgrp.setMaximumSize(200,100)
+#Brow
+Brlay = QtWidgets.QVBoxLayout(widget)
+Brgrp = QtWidgets.QGroupBox(widget)
+Brgrp.setLayout(Brlay)
+Brgrp.move(260,205)
+Brgrp.setMaximumSize(200,100)
+#Eye
+Eylay = QtWidgets.QVBoxLayout(widget)
+Eygrp = QtWidgets.QGroupBox(widget)
+Eygrp.setLayout(Eylay)
+Eygrp.move(350,320)
+Eygrp.setMaximumSize(200,100)
+#Nose
+Nolay = QtWidgets.QVBoxLayout(widget)
+Nogrp = QtWidgets.QGroupBox(widget)
+Nogrp.setLayout(Nolay)
+Nogrp.move(190,350)
+Nogrp.setMaximumSize(200,100)
+#Cheek
+Chlay = QtWidgets.QVBoxLayout(widget)
+Chgrp = QtWidgets.QGroupBox(widget)
+Chgrp.setLayout(Chlay)
+Chgrp.move(350,420)
+Chgrp.setMaximumSize(200,100)
+#Chin
+Cilay = QtWidgets.QVBoxLayout(widget)
+Cigrp = QtWidgets.QGroupBox(widget)
+Cigrp.setLayout(Cilay)
+Cigrp.move(280,570)
+Cigrp.setMaximumSize(200,100)
+#Upper Lip
+Ullay = QtWidgets.QVBoxLayout(widget)
+Ulgrp = QtWidgets.QGroupBox(widget)
+Ulgrp.setLayout(Ullay)
+Ulgrp.move(175,430)
+Ulgrp.setMaximumSize(200,120)
+#Lower Lip
+Lllay = QtWidgets.QVBoxLayout(widget)
+Llgrp = QtWidgets.QGroupBox(widget)
+Llgrp.setLayout(Lllay)
+Llgrp.move(175,505)
+Llgrp.setMaximumSize(200,100)
+#Build Button
+Bilay = QtWidgets.QVBoxLayout(widget)
+Bigrp = QtWidgets.QGroupBox(widget)
+Bigrp.setLayout(Bilay)
+Bigrp.move(170,60)
+
+
+
+
+
+#Head Button
+
+Hdbutt = QtWidgets.QPushButton()
+Hdbutt.setText('Get Head Joint')
+Hdlay.addWidget(Hdbutt)
+Hdbutt.setFont(font)
+Hdbutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Hdbutt.clicked.connect(pm.Callback(read, HeadThing, Hdbutt))
+
+#Brow Button
+
+Brbutt = QtWidgets.QPushButton()
+Brbutt.setText('Get Brow Verts')
+Brlay.addWidget(Brbutt)
+Brbutt.setFont(font)
+Brbutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Brbutt.clicked.connect(pm.Callback(readList, BrowList, Brbutt))
+
+
+#Eye Button
+
+Eybutt = QtWidgets.QPushButton()
+Eybutt.setText('Get Eye Mesh')
+Eylay.addWidget(Eybutt)
+Eybutt.setFont(font)
+Eybutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Eybutt.clicked.connect(pm.Callback(read, EyeThing, Eybutt))
+
+
+#Nose Button
+
+Nobutt = QtWidgets.QPushButton()
+Nobutt.setText('Get Nose Verts')
+Nolay.addWidget(Nobutt)
+Nobutt.setFont(font)
+Nobutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Nobutt.clicked.connect(pm.Callback(readList, NoseList, Nobutt))
+
+
+#Cheek Button
+
+Chbutt = QtWidgets.QPushButton()
+Chbutt.setText('Get Cheek Vert')
+Chlay.addWidget(Chbutt)
+Chbutt.setFont(font)
+Chbutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Chbutt.clicked.connect(pm.Callback(read, CheekThing, Chbutt))
+
+
+#Chin Button
+
+Cibutt = QtWidgets.QPushButton()
+Cibutt.setText('Get Chin Vert')
+Cilay.addWidget(Cibutt)
+Cibutt.setFont(font)
+Cibutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Cibutt.clicked.connect(pm.Callback(read, ChinThing, Cibutt))
+
+
+#Upper Lip Button
+
+Ulbutt = QtWidgets.QPushButton()
+Ulbutt.setText('Get Upper Lip Verts')
+Ullay.addWidget(Ulbutt)
+Ulbutt.setFont(font)
+Ulbutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Ulbutt.clicked.connect(pm.Callback(readLips, ULipList, Ulbutt))
+
+
+#Lower Lip Button
+
+Llbutt = QtWidgets.QPushButton()
+Llbutt.setText('Get Lower Lip Verts')
+Lllay.addWidget(Llbutt)
+Llbutt.setFont(font)
+Llbutt.setStyleSheet('background-color: #777; background-image:url(); color: #000;')
+Llbutt.clicked.connect(pm.Callback(readLips, LLipList, Llbutt))
+
+
+Dobutt = QtWidgets.QPushButton(widget)
+Dobutt.setText('Build Face Rig')
+Dobutt.setFont(font)
+Bilay.addWidget(Dobutt)
+Dobutt.setStyleSheet('background-color: #c20; background-image:url(); color: #000;')
+Dobutt.clicked.connect(pm.Callback(FaceRig))
+Dobutt.setFixedSize(150,100)
+
+
+
+windy.show()
