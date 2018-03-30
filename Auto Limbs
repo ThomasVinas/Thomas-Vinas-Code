@@ -1,0 +1,610 @@
+import pymel.core as pm
+import maya.cmds as cmd
+
+#import AutoLimberIK
+#reload(AutoLimberIK)
+def autolimber():
+	'''
+				How to install:
+			Put MirrorAnimationGUI.py in your 'documents\maya\*your prefered year number*\scripts' folder
+			write a line of python in the script editor:
+				import AutoLimberIK
+				
+			select that code and make it into a shelf button
+			click it
+			If that stops working under the import command add reload(AutoLimberIK)
+				How to Use:
+			If you want to parent your joints to an object or existing joint chain select it then press the get object name button
+				you can choose to parent directly or constrain it
+			in the text box you can name your joints
+			you can choose to have the FK integrated as a shape node in the joint(not recommended on A-Pose) or constrain it to joints
+			Use the slider to set how big your controls should be
+			you can choose a pretty color to match your style
+			You can choose whatever shape makes you happiest
+			There's an IK option if you're feeling sassy
+				This makes both IK and FK chains with an IKFK switch connected to the last joint
+					There is also a skin joint chain
+					The IK option allows you to place where you want your Polevector to pointConstraint
+						Be careful with this! It might make your IK misaligned with your FK
+			if you check Mirror then it will make a mirror set of everything across the X axis
+	'''
+
+
+	#Makes the lists
+	ProxList = []
+	MirrorProx = []
+	FKJointList = []
+	IKJointList = []
+	SKNJointList = []
+	PoleProxgrp = []
+	ShaderGrp = []
+	#print PoleProxgrp[0][0].getTranslation()
+	def ProxMaker():
+		del ProxList[:]
+		#del ShaderGrp[:]
+		redSh = cmd.shadingNode('lambert', asShader=1, n='Red')
+		cmd.setAttr('%s.color' % redSh, 1, 0, .1, type='double3')
+		yellSh = cmd.shadingNode('lambert', asShader=1, n='YellowChin')
+		cmd.setAttr('%s.color' % yellSh, .7, .7, 0, type='double3')
+		greenSh = cmd.shadingNode('lambert', asShader=1, n='Green')
+		cmd.setAttr('%s.color' % greenSh, 0, 1, 0, type='double3')
+		
+		ShaderGrp = [redSh,yellSh,greenSh]
+		
+		
+		#Creates the proxy geo
+		TopProx = pm.sphere(n='TopJoint',r=.7, ch=0)
+		cmd.hyperShade(a=greenSh)
+		TopProx[0].translateBy((0,6,0))
+		ProxList.append(TopProx[0])
+		MidProx = pm.sphere(n='MiddleJoint',r=.7, ch=0)
+		cmd.hyperShade(a=yellSh)
+		MidProx[0].translateBy((0,3,-.2))
+		ProxList.append(MidProx[0])
+		BotProx = pm.sphere(n='BottomJoint',r=.7, ch=0)
+		cmd.hyperShade(a=redSh)
+		ProxList.append(BotProx[0])
+		# if pm.checkBox("IK", query = True, value = True):
+			# del PoleProxgrp[:]
+			# PoleProx = pm.sphere(n='IKPoleVector',r=.5, ch=0)
+			# PoleProx[0].translateBy((0,3,-3))
+			# ProxList.append(PoleProx[0])
+		#Clears selection
+		cmd.select(cl=1)
+
+
+	def RigMaker():
+		del ShaderGrp[:]
+		MirrorOpt = cmd.checkBox("Mirror", query = True, value = True)
+		MirrorPoleProxgrp = []
+		if MirrorOpt:
+			del MirrorProx[:]
+			
+			for i in ProxList:
+				
+				newthing = i.getTranslation('world')
+				dupi = pm.duplicate(i, n='%s%s' % (i,'Mirror'), rr=True)
+				
+				newerthing = [newthing[0]*-1,newthing[1],newthing[2]]
+				dupi[0].setTranslation(newerthing)
+
+				MirrorProx.append(dupi[0])
+				
+
+			cmd.select(cl=1)
+		
+		#Object Names
+		NameThings = allName.getText()
+		def limbMaker(proxylist):
+			#del FKJointList [:]
+			#del IKJointList [:]
+			#del SKNJointList [:]
+			del ShaderGrp[:]
+			cmd.select(cl=1)
+			#Parent Finder
+			Parar = parentName.getText()
+			pm.objExists(Parar)
+			
+			#parentOptions
+			ParentType = pm.radioCollection(parentOptions, query=True, select=True )
+			#FKOptions
+			FkType = pm.radioCollection(FkOptions, query=True, select=True )
+			#IK
+			IKopt = cmd.checkBox("IK", query = True, value = True)
+			#Mirror
+			MirrorOpt = cmd.checkBox("Mirror", query = True, value = True)
+			#Offset
+			OffsetOpt = cmd.checkBox("Offset", query = True, value = True)
+			#Color
+			ColorChoice = pm.radioCollection(ColorOptions, query=True, select=True )
+			#Shape
+			ShapeChoice = pm.radioCollection(ShapeOptions, query=True, select=True )
+			#Size
+			size = pm.floatSliderGrp (SizeOpt, query = True, value = True)
+			#Distance for IK Pole Vector
+			Dist = pm.floatSliderGrp (DistOpt, query = True, value = True)
+		
+			#Names things
+			thingName = 'TomMade'
+			if NameThings == '':
+				if proxylist[0] == 'TopJointMirror':
+					thingName = 'TomMade'
+					thingName = '%s_Mirror' % thingName
+				else:
+					thingName = 'TomMade'
+			else:
+				if proxylist[0] == 'TopJointMirror':
+					thingName = NameThings
+					if 'L_' in thingName:
+						thingName = thingName.replace('L_','R_')
+					else:
+						thingName = '%s_Mirror' % thingName
+				else:
+					thingName = NameThings
+			#checks the fk type
+			if FkType == 'Constrained':
+				shapeNode = False
+			else:
+				shapeNode = True
+				
+			#Parenting function
+			def parenter(child):
+				if pm.objExists(Parar):
+					if ParentType == 'Direct':
+						pm.parent(child,Parar)
+					else:
+						pm.parentConstraint(Parar,child,mo=1)
+				else:
+					print 'Its an orphan!'
+				
+				
+			#Makes the joints
+			def jointing(lister, type):
+				cmd.select(cl=1)
+				del lister[:]
+				for i,k in enumerate(proxylist[0:3],1):
+					
+					if proxylist[0] == 'TopJointMirror':
+						Joint = pm.joint(n='%s%s_%s_Jts' % (thingName,i,type), p=k.getTranslation())
+					else:
+						Joint = pm.joint(n='%s%s_%s_Jts' % (thingName,i,type), p=k.getTranslation())
+					lister.append(Joint)
+				cmd.select(cl=1)
+			
+			#make skin fk IK
+			jointing(FKJointList,'FK')
+			if IKopt:
+				jointing(SKNJointList,'SKN')
+				jointing(IKJointList,'IK')
+				
+			parenter(FKJointList[0])
+			if IKopt:
+				parenter(SKNJointList[0])
+				parenter(IKJointList[0])
+			
+			#orient skin fk IK
+			for i in FKJointList:
+				pm.joint(i ,e=1  ,oj='xyz' ,secondaryAxisOrient='zup' ,ch=1, zso=1)
+			
+			pm.setAttr('%s.jointOrientX' % FKJointList[-1], 0)
+			pm.setAttr('%s.jointOrientY' % FKJointList[-1], 0)
+			pm.setAttr('%s.jointOrientZ' % FKJointList[-1], 0)
+			if IKopt:
+				for i in SKNJointList:
+					pm.joint(i ,e=1  ,oj='xyz' ,secondaryAxisOrient='zup' ,ch=1, zso=1)
+				pm.setAttr('%s.jointOrientX' % FKJointList[-1], 0)
+				pm.setAttr('%s.jointOrientY' % FKJointList[-1], 0)
+				pm.setAttr('%s.jointOrientZ' % FKJointList[-1], 0)
+				for i in IKJointList:
+					pm.joint(i ,e=1  ,oj='xyz' ,secondaryAxisOrient='zup' ,ch=1, zso=1)
+				pm.setAttr('%s.jointOrientX' % FKJointList[-1], 0)
+				pm.setAttr('%s.jointOrientY' % FKJointList[-1], 0)
+				pm.setAttr('%s.jointOrientZ' % FKJointList[-1], 0)
+			
+			#This bitch puts fk controls on anything!
+			def fkItUp(name, jtList, shape): 
+			
+				deg = 3
+				seg = 8
+				if ShapeChoice == "Circle":
+					print 'do nothing'
+				elif ShapeChoice == "Octagon":
+					deg = 1
+					seg = 8
+				elif ShapeChoice == "Hexagon":
+					deg = 1
+					seg = 6
+				elif ShapeChoice == "Pentagon":
+					deg = 1
+					seg = 5
+				elif ShapeChoice == "Square":
+					deg = 1
+					seg = 4
+				
+
+				ci = pm.circle(r=size ,d=deg,s=seg, ch=0)
+				
+				if ShapeChoice == "Sphere":
+					deg = 3
+					seg = 8
+					#Creates special controller
+					def makShap(master, rot):
+						#duplicates
+						dup = pm.duplicate(master, rr=True)
+						#rotates
+						pm.rotate(dup, rot,0,0)
+						#freezes
+						pm.makeIdentity(dup, apply=True, t=1, r=1, s=1, n=0)
+						#parents shape
+						pm.parent(dup[0].getShape(), master[0],s=1, add=1)
+						#gets rid of the body
+						pm.delete(dup)
+						
+					#different degrees of it
+					makShap(ci,45)
+					makShap(ci,-45)
+					makShap(ci,90)
+				
+				ci[0].overrideEnabled.set(1)
+				print ColorChoice
+				
+				if ColorChoice == "Red":
+					ci[0].overrideColor.set(13)
+				elif ColorChoice == "Orange":
+					ci[0].overrideColor.set(12)
+				elif ColorChoice == "Yellow":
+					ci[0].overrideColor.set(17)
+				elif ColorChoice == "Green":
+					ci[0].overrideColor.set(14)
+				elif ColorChoice == "Blue":
+					ci[0].overrideColor.set(15)
+				elif ColorChoice == "Pink":
+					ci[0].overrideColor.set(9)
+				elif ColorChoice == "White":
+					ci[0].overrideColor.set(16)
+					
+				if proxylist[0] == 'TopJointMirror':
+					if ColorChoice == "Red":
+						ci[0].overrideColor.set(15)
+					elif ColorChoice == "Orange":
+						ci[0].overrideColor.set(14)
+					elif ColorChoice == "Yellow":
+						ci[0].overrideColor.set(17)
+					elif ColorChoice == "Green":
+						ci[0].overrideColor.set(12)
+					elif ColorChoice == "Blue":
+						ci[0].overrideColor.set(13)
+					elif ColorChoice == "Pink":
+						ci[0].overrideColor.set(9)
+					elif ColorChoice == "White":
+						ci[0].overrideColor.set(16)
+				
+				
+				
+				#This one makes the controllers seperate with parent contstraints
+				if shape == False:
+					namedThing = name
+					templist = []
+					templist2 = []
+					print "I wasnt supposed to trigger!"
+					for count, list in enumerate(jtList):
+						
+						dupCon = pm.duplicate(ci, n='%s%s_FK' % (namedThing,(count+1)), rr=True)
+						if OffsetOpt == True:
+							dupOff = pm.group(dupCon, n='{}Offset_grp'.format(dupCon[0]))
+							dup = pm.group(dupOff, n='{}Orient_grp'.format(dupCon[0]))
+						else:
+							dup = pm.group(dupCon, n='{}Orient_grp'.format(dupCon[0]))
+							
+						dup.translateBy((list.getTranslation('world')))
+						if list == jtList[-1]:
+							dup.rotateBy(tempRot)
+						else:
+							tempconstraint = pm.aimConstraint(jtList[count+1] ,dup, mo=0, aim=(0,0,1), u=(0,1,0), wut='none')
+							pm.delete(tempconstraint)
+							tempRot = dup.getRotation()
+							
+						pm.parentConstraint(dupCon, list, mo=1)
+						#pm.scaleConstraint(dupCon, list, mo=1)
+						templist.append(dup)
+						templist2.append(dupCon)
+					
+					for count, list in enumerate(templist):
+						if list == templist[0]:
+							Fkk = pm.group(templist, n='%s_FK_Ctrls' % namedThing)
+						else:
+							pm.parent(list, templist2[count-1][0])
+							print list
+							print templist2[count-1][0]
+				
+					templist = []
+				#This one makes the controllers shape nodes of the joints
+				else:
+					for count, list in enumerate(jtList):
+						dup = pm.duplicate(ci, n='%sShape' % list, rr=True)
+						print dup
+						dup[0].translateBy((list.getTranslation('world')))
+						print list.getTranslation('world')
+						if list == jtList[-1]:
+							dup[0].rotateBy(tempRot)
+						else:
+							tempconstraint = pm.aimConstraint(jtList[count+1] ,dup, mo=0, aim=(0,0,1), u=(0,1,0), wut='none')
+							pm.delete(tempconstraint)
+							tempRot = dup[0].getRotation()
+							
+						pm.makeIdentity(dup, apply=True, t=0, r=1, s=1, n=0)
+						pm.parent(dup[0].getShape(), list, s=1, add=1)
+						pm.delete(dup)
+						
+					
+				pm.delete(ci)
+				return Fkk
+			
+			#fkItUp(thingName, FKJointList, shapeNode)
+			
+			if IKopt:
+				'''
+				IK Creation starts here:
+				'''
+				for i in IKJointList:
+					pm.makeIdentity(i, apply=True, t=1, r=1, s=1, n=0)
+				#Ik handle
+				IKHandle = pm.ikHandle(sj=IKJointList[0], ee=IKJointList[-1], n='%s_IKHandle' % thingName, sol='ikRPsolver', sticky='sticky')
+				IKHandle[0].visibility.set(0)
+				#setting up the pole control
+				IKPoleCtrl = pm.circle(r=size/2, n='%s_IKaim' % thingName,ch=0)
+				
+				def colorMaker(obj):
+					obj[0].overrideEnabled.set(1)
+					print ColorChoice
+					if ColorChoice == "Red":
+						obj[0].overrideColor.set(13)
+					elif ColorChoice == "Orange":
+						obj[0].overrideColor.set(12)
+					elif ColorChoice == "Yellow":
+						obj[0].overrideColor.set(17)
+					elif ColorChoice == "Green":
+						obj[0].overrideColor.set(14)
+					elif ColorChoice == "Blue":
+						obj[0].overrideColor.set(15)
+					elif ColorChoice == "Pink":
+						obj[0].overrideColor.set(9)
+					elif ColorChoice == "White":
+						obj[0].overrideColor.set(16)
+						
+					if proxylist[0] == 'TopJointMirror':
+						if ColorChoice == "Red":
+							obj[0].overrideColor.set(15)
+						elif ColorChoice == "Orange":
+							obj[0].overrideColor.set(14)
+						elif ColorChoice == "Yellow":
+							obj[0].overrideColor.set(17)
+						elif ColorChoice == "Green":
+							obj[0].overrideColor.set(12)
+						elif ColorChoice == "Blue":
+							obj[0].overrideColor.set(13)
+						elif ColorChoice == "Pink":
+							obj[0].overrideColor.set(9)
+						elif ColorChoice == "White":
+							obj[0].overrideColor.set(16)
+						
+				colorMaker(IKPoleCtrl)
+				
+				# a = cmd.ls(sl=1, shortNames=1)
+
+				# a = pm.general.PyNode(a[0])
+				# b = pm.general.PyNode(a[1])
+				# c = pm.general.PyNode(a[2])
+
+				aPos = proxylist[0].getRotatePivot('world')
+				bPos = proxylist[1].getRotatePivot('world')
+				cPos = proxylist[2].getRotatePivot('world')
+
+				midPos = [((aPos[0] - cPos[0])/2)+cPos[0], ((aPos[1] - cPos[1])/2)+cPos[1],((aPos[2] - cPos[2])/2)+cPos[2]]
+
+				slope = midPos - bPos
+
+				point = midPos - slope*Dist
+
+				#moo.setTranslation(point)
+				
+				#poleLoc = pm.xform(proxylist[3], q=1, ws=1 ,rp=1)
+				#print PoleProxgrp
+				IKPoleCtrl[0].setTranslation(point)
+				
+				#pm.delete(PoleProxgrp)
+				
+				tempconstraint = pm.aimConstraint(IKJointList[1] ,IKPoleCtrl, mo=0, aim=(0,0,1), u=(0,1,0), wut='none')
+				pm.delete(tempconstraint)
+				
+				pm.makeIdentity(IKPoleCtrl, apply=True, t=1, r=1, s=1, n=0)
+				
+				#Creates IK control
+				IKCtrl = pm.circle(r=size, n='%s_IK_Ctrl' % thingName,d=1 ,s=4, ch=0)
+				colorMaker(IKCtrl)
+				IKCtrlGrp = pm.group(IKCtrl, n='{}Orient_grp'.format(IKCtrl[0]))
+				
+				IKCtrlGrp.translateBy(IKJointList[1].getTranslation('world'))
+				tempconstraint = pm.aimConstraint(IKJointList[2] ,IKCtrlGrp, mo=0, aim=(0,0,1), u=(0,1,0), wut='none')
+				pm.delete(tempconstraint)
+				
+				IKCtrlGrp.setTranslation(IKJointList[2].getTranslation('world'))
+				
+				#Sets up IKSwitch
+				Switcher = pm.circle(n='%s_FKIK_Switch' % thingName, r=size ,d=1 ,s=3, ch=0)
+				colorMaker(Switcher)
+				Switcher[0].setTransformation((IKCtrlGrp.getTransformation()))
+				Switcher[0].translateBy((0,0,-size))
+				pm.makeIdentity(Switcher, apply=True, t=1, r=1, s=1, n=0)
+				pm.parent(Switcher, SKNJointList[2])
+				pm.setAttr(Switcher[0].tx, l=1, k=0)
+				pm.setAttr(Switcher[0].ty, l=1, k=0)
+				pm.setAttr(Switcher[0].tz, l=1, k=0)
+				pm.setAttr(Switcher[0].rx, l=1, k=0)
+				pm.setAttr(Switcher[0].ry, l=1, k=0)
+				pm.setAttr(Switcher[0].rz, l=1, k=0)
+				pm.setAttr(Switcher[0].sx, l=1, k=0)
+				pm.setAttr(Switcher[0].sy, l=1, k=0)
+				pm.setAttr(Switcher[0].sz, l=1, k=0)
+				pm.setAttr(Switcher[0].v, l=1, k=0)
+				pm.addAttr(Switcher[0], ln='FKIK_Switch', max=1, min=0, k=1, dv=0)
+				
+				#pm.makeIdentity(IKCtrl, apply=True, t=1, r=1, s=1, n=0)
+				
+				#pm.pointConstraint(IKCtrl, IKHandle[0],mo=1)
+				pm.parent(IKHandle[0],IKCtrl[0])
+				
+				#Establishes the groups
+				IKgrp = pm.group(IKCtrlGrp, IKPoleCtrl[0], n='%s_IKCtrls' % thingName)
+				FKgrp = fkItUp(thingName, FKJointList, shapeNode)
+				
+				pm.select(cl=1)
+				
+				#Constrains the joints
+				ConstList = []
+				for s,f,i in zip(SKNJointList, FKJointList, IKJointList):
+					parConst = pm.parentConstraint(i,f,s,mo=1)
+					ConstList.append(parConst)
+				
+				#Makes the set driven keys
+				def setDriver(driver,driverAtr,driven,drivenAtr,order,default,new):
+					for d,da in zip(driven,drivenAtr):
+						pm.setDrivenKeyframe('%s.%s%s' % (d,da,order) ,cd='%s.%s' % (driver,driverAtr) , dv=int(new) , v=int(default))
+						pm.setDrivenKeyframe('%s.%s%s' % (d,da,order) ,cd='%s.%s' % (driver,driverAtr) , dv=int(not new) , v=int(not default))
+					
+					
+				setDriver(Switcher[0],'FKIK_Switch', ConstList,FKJointList,'W1',False,True)
+				setDriver(Switcher[0],'FKIK_Switch', FKJointList,'v','',False,True)
+				pm.setDrivenKeyframe('%s.v' % FKgrp ,cd='%s.%s' % (Switcher[0],'FKIK_Switch') , dv=0 , v=1)
+				pm.setDrivenKeyframe('%s.v' % FKgrp ,cd='%s.%s' % (Switcher[0],'FKIK_Switch') , dv=1 , v=0)
+				setDriver(Switcher[0],'FKIK_Switch', ConstList,IKJointList,'W0',True ,True)
+				setDriver(Switcher[0],'FKIK_Switch', IKJointList,'v','',True ,True)
+				pm.setDrivenKeyframe('%s.v' % IKgrp ,cd='%s.%s' % (Switcher[0],'FKIK_Switch') , dv=1 , v=1)
+				pm.setDrivenKeyframe('%s.v' % IKgrp ,cd='%s.%s' % (Switcher[0],'FKIK_Switch') , dv=0 , v=0)
+				
+				#Just so the pole vector doesn't fuck up the joint layout.
+				pm.poleVectorConstraint(IKPoleCtrl,IKHandle[0])
+				
+				
+				
+				if pm.objExists(Parar):
+					pm.group(FKgrp,IKgrp, n='%s_Grp' % thingName)
+				else:
+					pm.group(SKNJointList[0],FKJointList[0],IKJointList[0],FKgrp,IKgrp, n='%s_Grp' % thingName)
+				#parenter(SKNJointList[0])
+				#parenter(FKJointList[0])
+				#parenter(IKJointList[0])
+				#parenter(FKgrp)
+				
+				
+			else:
+				FKgrp = fkItUp(thingName, FKJointList, shapeNode)
+				print FKgrp
+				parenter(FKJointList[0])
+				if shapeNode == False:
+					parenter(FKgrp)
+					
+			#deletes proxy geo
+			pm.delete(proxylist)
+			
+		limbMaker(ProxList)
+		if MirrorOpt:
+			#NameThings = 'R_{}'.format(NameThings)
+			limbMaker(MirrorProx)
+
+
+
+
+	#Name of window and color declaration
+	id = 'Toms limbs'
+	#windo = 'blanktext' 
+	pink = [.9,0,.8]
+	red = [.9,.1,.3]
+	orange = [.9,.6,0]
+	green = [0,.8,.3]
+	blue = [0,.5,.8]
+	yellow = [.9,.9,0]
+	white = [.8,.8,.8]
+	
+	try:
+	   windo
+	except NameError:
+	   windo = 'blanktext' 
+	
+
+	if pm.window(windo, exists=1):
+		pm.deleteUI(windo)
+		
+	#Makes the window
+	windo = pm.window(id,w=300)
+	pm.frameLayout('Select or Type Parent:')
+	pm.columnLayout(adjustableColumn=True)
+	parentName = pm.textField(tx='', w=200, bgc=white)
+
+
+	#Reads the text field
+	def read(textFeld):
+		grabIt = cmd.ls(sl=1)
+		textFeld.setText('%s' % grabIt[0])
+	pm.button(label='Get Object Name', h=40, command=pm.Callback(read, parentName), bgc=green)
+
+
+	#Choose the parent type
+	parentOptions = pm.radioCollection()
+	pm.radioButton("Direct", label = "Parent directly", sl=1)
+	pm.radioButton("Constrain", label = "Parent Constrain")
+
+
+	#Nmae the limb
+	pm.frameLayout('Name your limb:')
+	allName = pm.textField(tx='', w=200, bgc=white)
+	#Choose the FK type
+	FkOptions = pm.radioCollection("Radio name")
+	pm.radioButton("Integrated", label = "Integrated FK")
+	pm.radioButton("Constrained", label = "Constrained FK", sl=1)
+
+
+	pm.frameLayout('How big do you want it?')
+	SizeOpt = pm.floatSliderGrp ( "Size", label = "Control Size", field = True, fieldMinValue = .1, fieldMaxValue = 10, minValue = .1, maxValue = 10, columnWidth3 = [50, 50, 50], columnAlign3 = ["left", "both", "left"], precision = 2, value = 1)
+	DistOpt = pm.floatSliderGrp ( "IKDist", label = "IK Distance", field = True, fieldMinValue = 1, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [50, 50, 50], columnAlign3 = ["left", "both", "left"], precision = 2, value = 4)
+
+	#Choose the color of the controller
+	pm.frameLayout('Choose your color')
+	ColorOptions = pm.radioCollection()
+	pm.radioButton("Red", label = "Red", bgc=red)
+	pm.radioButton("Orange", label = "Orange", bgc=orange)
+	pm.radioButton("Yellow", label = "Yellow", bgc=yellow)
+	pm.radioButton("Green", label = "Green", bgc=green)
+	pm.radioButton("Blue", label = "Blue", bgc=blue, sl=1)
+	pm.radioButton("Pink", label = "Pink", bgc=pink)
+	pm.radioButton("White", label = "White", bgc=white)
+
+
+	#Choose the shape of the controller
+	pm.frameLayout('Choose your Shape')
+	ShapeOptions = pm.radioCollection()
+	pm.radioButton("Circle", label = "Circle", sl=1)
+	pm.radioButton("Octagon", label = "Octagon")
+	pm.radioButton("Hexagon", label = "Hexagon")
+	pm.radioButton("Pentagon", label = "Pentagon")
+	pm.radioButton("Square", label = "Square")
+	pm.radioButton("Sphere", label = "Sphere")
+
+	#Turn on IK or Mirroring
+	pm.frameLayout('Choose before making proxy:')
+	pm.checkBox('IK', label = "IK", value = 0)
+	pm.checkBox('Mirror', label = "Mirror", value = 0)
+	pm.checkBox('Offset', label = "Offset Group", value = 0)
+
+	pm.frameLayout('Build')
+	pm.button( label='Make Proxy Geo', height=80, bgc=blue, command= pm.Callback(ProxMaker))
+	pm.button( label='Build Limb', height=80, bgc=red, command= pm.Callback(RigMaker))
+	pm.showWindow()
+	
+autolimber()
+
+
+
+
+
+
